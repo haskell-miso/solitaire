@@ -1,6 +1,7 @@
 ----------------------------------------------------------------------------
 -- | Klondike Solitaire — a miso application
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes       #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE CPP               #-}
 ----------------------------------------------------------------------------
@@ -9,6 +10,7 @@ module Main where
 import           Miso hiding ((!!))     -- Miso redefines (!!) as a JS array accessor
 import qualified Miso.Html as H
 import           Miso.CSS hiding (ms)   -- 'ms' would shadow Miso.String.ms
+import           Miso.FFI.QQ (js)
 import           Miso.Lens
 import           Miso.Reload
 import           Miso.Random (replicateRM)
@@ -90,6 +92,7 @@ data Action
   | ClickTableauCard Int Int   -- click tableau col i, card j from top (0=top)
   | ClickTableauCol  Int       -- click empty area / face-down card in col i
   | AutoComplete               -- move one card to a foundation (recursive)
+  | ToggleFullscreen           -- toggle browser fullscreen
   deriving (Show, Eq)
 ----------------------------------------------------------------------------
 -- Entry point
@@ -117,7 +120,15 @@ globalCSS = mconcat
   , "  from { opacity:0; transform: scale(0.85) translateY(20px); }"
   , "  to   { opacity:1; transform: scale(1) translateY(0); }"
   , "} "
-  , ".sol-win { animation: sol-win-in 0.35s ease; }"
+  , ".sol-win { animation: sol-win-in 0.35s ease; } "
+  , "* { -webkit-tap-highlight-color: transparent; } "
+  , "button, .sol-card { touch-action: manipulation; } "
+  , ".sol-board { transform-origin: top left; } "
+  , "@media (max-width: 639px) { .sol-board { zoom: 0.85; } } "
+  , "@media (max-width: 499px) { .sol-board { zoom: 0.73; } } "
+  , "@media (max-width: 430px) { .sol-board { zoom: 0.64; } } "
+  , "@media (max-width: 375px) { .sol-board { zoom: 0.58; } } "
+  , "@media (max-width: 340px) { .sol-board { zoom: 0.52; } } "
   ]
 ----------------------------------------------------------------------------
 app :: App Model Action
@@ -318,6 +329,9 @@ updateModel = \case
       Nothing -> pure ()
       Just m' -> put m' >> issue AutoComplete
 
+  ToggleFullscreen -> io_
+    [js| document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen() |]
+
 -- | Try to select the face-up run starting at cardFromTop in col ci.
 selectRun :: Model -> Int -> [FaceCard] -> Int -> Effect parent props Model Action
 selectRun m ci col cardFromTop =
@@ -334,15 +348,21 @@ viewModel _ m =
     [ style_
         [ backgroundColor (hex "076324")
         , minHeight (vh 100.0)
-        , padding (px 20)
         , fontFamily "Arial,Helvetica,sans-serif"
-        , boxSizing "border-box"
         , "user-select" =: "none"
         ]
     ]
-    [ viewHeader m
-    , viewTopRow m
-    , viewTableau m
+    [ H.div_
+        [ classList ["sol-board"]
+        , style_
+            [ padding (px 20)
+            , boxSizing "border-box"
+            ]
+        ]
+        [ viewHeader m
+        , viewTopRow m
+        , viewTableau m
+        ]
     , if _gameWon m then viewWinOverlay else vfrag []
     ]
 
@@ -353,6 +373,7 @@ viewHeader m =
     [ style_
         [ display "flex"
         , alignItems "center"
+        , "flex-wrap" =: "wrap"
         , gap (px 12)
         , marginBottom (px 16)
         ]
@@ -362,6 +383,7 @@ viewHeader m =
         [ text "\x2660 Solitaire" ]
     , actionBtn "New Game"      Init
     , actionBtn "Auto Complete" AutoComplete
+    , actionBtn "\x26F6"        ToggleFullscreen
     , H.span_
         [ style_
             [ color (hex "c6f6d5")
