@@ -469,7 +469,7 @@ viewWaste m =
                     : style_ ( faceUpStyles c selFlag
                              ++ [ position "absolute"
                                 , left (px leftOff)
-                                , zIndex (ms (n - idx))
+                                , zIndex (n - idx)
                                 ] )
                     : evts
                     )
@@ -680,7 +680,7 @@ viewWinOverlay =
         , display "flex"
         , alignItems "center"
         , justifyContent "center"
-        , zIndex "999"
+        , zIndex 999
         ]
     ]
     [ H.div_
