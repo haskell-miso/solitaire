@@ -113,8 +113,48 @@ foreign export javascript "hs_start" main :: IO ()
 -- | Global CSS injected into <head> – handles pseudo-classes and keyframes
 globalCSS :: MisoString
 globalCSS = mconcat
-  [ ".sol-card { transition: box-shadow 0.2s ease, transform 0.15s ease; } "
-  , ".sol-card:hover { transform: translateY(-3px); } "
+    -- Every dimension derives from the card width, which scales with the
+    -- viewport (7 columns always fill the window) up to a 110px cap.
+  [ ":root {"
+  , "  --pad: clamp(8px, 2vw, 20px);"     -- board padding
+  , "  --gap: clamp(4px, 1.2vw, 14px);"   -- pile gap
+  , "  --cw: min(calc((100vw - 2 * var(--pad) - 6 * var(--gap)) / 7), 110px);"
+  , "  --ch: calc(var(--cw) * 1.44);"     -- card height
+  , "  --fd: calc(var(--ch) * 0.20);"     -- face-down stack offset
+  , "  --fu: calc(var(--ch) * 0.28);"     -- face-up stack offset
+  , "  --wo: calc(var(--cw) * 0.23);"     -- waste fan overlap
+  , "  --corner-fs: calc(var(--cw) * 0.18);"
+  , "  --pip-fs: calc(var(--cw) * 0.37);"
+  , "  --cbw: 2px;"                       -- card border width
+  , "  --crad: calc(var(--cw) * 0.11);"   -- card border radius
+  , "} "
+    -- Phone-specific tweaks: relatively larger text, thinner borders,
+    -- and padding that respects notch safe areas.
+  , "@media (max-width: 639px) { :root {"
+  , "  --pad: max(2vw, env(safe-area-inset-left), env(safe-area-inset-right));"
+  , "  --corner-fs: calc(var(--cw) * 0.26);"
+  , "  --pip-fs: calc(var(--cw) * 0.42);"
+  , "  --cbw: 1.5px;"
+  , "} } "
+    -- Board hugs the seven tableau columns so the top row can't stretch
+    -- across a wide window (on mobile this computes to exactly 100vw).
+  , ".sol-board { width: calc(7 * var(--cw) + 6 * var(--gap) + 2 * var(--pad));"
+  , "  max-width: 100%; margin: 0 auto;"
+  , "  padding: var(--pad); box-sizing: border-box; } "
+  , ".sol-header { display: flex; align-items: center; flex-wrap: wrap;"
+  , "  gap: 12px; margin-bottom: 16px; } "
+  , ".sol-toprow { display: flex; gap: var(--gap); margin-bottom: 16px; } "
+  , ".sol-tableau { display: flex; gap: var(--gap); align-items: flex-start; } "
+  , ".sol-btn { padding: 6px 14px; background: #1a5c33; color: #fff;"
+  , "  border: 1px solid #2a8a55; border-radius: 5px; cursor: pointer;"
+  , "  font-size: 13px; } "
+  , "@media (max-width: 639px) {"
+  , "  .sol-header { gap: 8px; margin-bottom: 10px; }"
+  , "  .sol-toprow { margin-bottom: 12px; }"
+  , "  .sol-btn { padding: 9px 12px; font-size: 14px; }"
+  , "} "
+  , ".sol-card { transition: box-shadow 0.2s ease, transform 0.15s ease; } "
+  , "@media (hover: hover) { .sol-card:hover { transform: translateY(-3px); } } "
   , ".sol-col { transition: height 0.3s ease; } "
   , "@keyframes sol-win-in {"
   , "  from { opacity:0; transform: scale(0.85) translateY(20px); }"
@@ -123,12 +163,6 @@ globalCSS = mconcat
   , ".sol-win { animation: sol-win-in 0.35s ease; } "
   , "* { -webkit-tap-highlight-color: transparent; } "
   , "button, .sol-card { touch-action: manipulation; } "
-  , ".sol-board { transform-origin: top left; } "
-  , "@media (max-width: 639px) { .sol-board { zoom: 0.85; } } "
-  , "@media (max-width: 499px) { .sol-board { zoom: 0.73; } } "
-  , "@media (max-width: 430px) { .sol-board { zoom: 0.64; } } "
-  , "@media (max-width: 375px) { .sol-board { zoom: 0.58; } } "
-  , "@media (max-width: 340px) { .sol-board { zoom: 0.52; } } "
   ]
 ----------------------------------------------------------------------------
 app :: App Model Action
@@ -348,17 +382,13 @@ viewModel _ m =
     [ style_
         [ backgroundColor (hex "076324")
         , minHeight (vh 100.0)
+        , "min-height" =: "100dvh"
         , fontFamily "Arial,Helvetica,sans-serif"
         , "user-select" =: "none"
         ]
     ]
     [ H.div_
-        [ classList ["sol-board"]
-        , style_
-            [ padding (px 20)
-            , boxSizing "border-box"
-            ]
-        ]
+        [ classList ["sol-board"] ]
         [ viewHeader m
         , viewTopRow m
         , viewTableau m
@@ -370,14 +400,7 @@ viewModel _ m =
 viewHeader :: Model -> View Model Action
 viewHeader m =
   H.div_
-    [ style_
-        [ display "flex"
-        , alignItems "center"
-        , "flex-wrap" =: "wrap"
-        , gap (px 12)
-        , marginBottom (px 16)
-        ]
-    ]
+    [ classList ["sol-header"] ]
     [ H.h2_
         [ style_ [ color white, margin "0", fontSize (px 20) ] ]
         [ text "\x2660 Solitaire" ]
@@ -396,27 +419,17 @@ viewHeader m =
   where
     actionBtn lbl act =
       H.button_
-        [ H.onClick act
-        , style_
-            [ padding "6px 14px"
-            , backgroundColor (hex "1a5c33")
-            , color white
-            , border "1px solid #2a8a55"
-            , borderRadius (px 5)
-            , cursor "pointer"
-            , fontSize (px 13)
-            ]
-        ]
+        [ H.onClick act, classList ["sol-btn"] ]
         [ text lbl ]
 
 -- | Top row: stock | waste | spacer | 4 foundations
 viewTopRow :: Model -> View Model Action
 viewTopRow m =
   H.div_
-    [ style_ [ display "flex", gap (px 10), marginBottom (px 16) ] ]
+    [ classList ["sol-toprow"] ]
     [ viewStock m
     , viewWaste m
-    , emptySlot []
+    , H.div_ [ style_ [ "flex" =: "1" ] ] []   -- flexible spacer
     , viewFoundation 0 m
     , viewFoundation 1 m
     , viewFoundation 2 m
@@ -439,9 +452,9 @@ viewStock m = case _stock m of
       [ H.div_
           [ style_
               [ color (RGBA 255 255 255 0.55)
-              , fontSize (px 11)
+              , "font-size" =: "var(--corner-fs)"
               , textAlign "center"
-              , paddingTop (px 42)
+              , "line-height" =: "var(--ch)"
               ]
           ]
           [ text (ms (length (_stock m))) ]
@@ -456,11 +469,16 @@ viewWaste m =
       visible = take 3 (_waste m)          -- [newest, 2nd, 3rd] (head = top)
       n       = length visible
   in H.div_
-       [ style_ [ position "relative", width (px wasteW), height (px cardH) ] ]
+       [ style_
+           [ position "relative"
+           , "width"  =: "calc(var(--cw) + 2 * var(--wo))"
+           , "height" =: "var(--ch)"
+           ]
+       ]
        $ case visible of
            [] -> [ emptySlot [] ]
            _  ->
-             [ let leftOff = (n - 1 - idx) * wasteOverlap
+             [ let leftOff = "calc(" <> ms (n - 1 - idx) <> " * var(--wo))"
                    isTop   = idx == 0
                    selFlag = isTop && isSel
                    evts    = [ H.onClick ClickWaste | isTop ]
@@ -468,7 +486,7 @@ viewWaste m =
                     ( classList ["sol-card"]
                     : style_ ( faceUpStyles c selFlag
                              ++ [ position "absolute"
-                                , left (px leftOff)
+                                , "left" =: leftOff
                                 , zIndex (n - idx)
                                 ] )
                     : evts
@@ -494,7 +512,7 @@ viewFoundation fi m =
                 , fontSize (px 18)
                 , fontWeight "bold"
                 , textAlign "center"
-                , lineHeight (px 96)
+                , "line-height" =: "var(--ch)"
                 ]
             ]
             [ text "A" ]
@@ -505,30 +523,40 @@ viewFoundation fi m =
 viewTableau :: Model -> View Model Action
 viewTableau m =
   H.div_
-    [ style_ [ display "flex", gap (px 10), alignItems "flex-start" ] ]
+    [ classList ["sol-tableau"] ]
     [ viewTableauCol ci m | ci <- [0..6] ]
 
--- | One tableau column with absolutely-positioned stacked cards
+-- | One tableau column with absolutely-positioned stacked cards.
+--   Offsets are calc() expressions counting face-down/face-up cards above,
+--   so the stack spacing follows the CSS variables.
 viewTableauCol :: Int -> Model -> View Model Action
 viewTableauCol ci m =
   let col     = _tableau m !! ci
       revCol  = reverse col          -- bottom card rendered first
-      offsets = scanl (+) 0 (map faceOffset revCol)
-      colH    = if null col then slotH else last offsets + cardH
+      offsets = scanl bump (0, 0) revCol
+      colH    = if null col then "var(--ch)" else offsetCalc (last offsets) True
   in H.div_
       [ classList ["sol-col"]
-      , style_ [ position "relative", width (px cardW), height (px colH) ]
+      , style_ [ position "relative", "width" =: "var(--cw)", "height" =: colH ]
       ]
       $  emptySlot [ H.onClick (ClickTableauCol ci) ]
-      :  [ renderTabCard ci m revCol topOff ri fc
-         | (topOff, ri, fc) <- zip3 offsets [0..] revCol
+      :  [ renderTabCard ci m revCol (offsetCalc off False) ri fc
+         | (off, ri, fc) <- zip3 offsets [0..] revCol
          ]
   where
-    faceOffset (FaceDown _) = 20
-    faceOffset (FaceUp _)   = 28
+    bump (d, u) (FaceDown _) = (d + 1, u)
+    bump (d, u) (FaceUp _)   = (d, u + 1)
+
+-- | calc() expression for a stack offset of d face-down and u face-up cards,
+--   optionally plus one card height (for column heights)
+offsetCalc :: (Int, Int) -> Bool -> MisoString
+offsetCalc (d, u) addCard = mconcat
+  [ "calc(", ms d, " * var(--fd) + ", ms u, " * var(--fu)"
+  , if addCard then " + var(--ch))" else ")"
+  ]
 
 -- | Render one tableau card at a given top offset
-renderTabCard :: Int -> Model -> [FaceCard] -> Int -> Int -> FaceCard -> View Model Action
+renderTabCard :: Int -> Model -> [FaceCard] -> MisoString -> Int -> FaceCard -> View Model Action
 renderTabCard ci m revCol topOff ri fc =
   let cardFromTop = length revCol - 1 - ri
       isSel       = isTabSelected ci cardFromTop m
@@ -536,14 +564,14 @@ renderTabCard ci m revCol topOff ri fc =
     FaceDown _ ->
       H.div_
         [ H.onClick (ClickTableauCol ci)
-        , style_ (cardBackStyles ++ [ position "absolute", top (px topOff) ])
+        , style_ (cardBackStyles ++ [ position "absolute", "top" =: topOff ])
         ]
         []
     FaceUp c ->
       H.div_
         [ classList ["sol-card"]
         , H.onClick (ClickTableauCard ci cardFromTop)
-        , style_ (faceUpStyles c isSel ++ [ position "absolute", top (px topOff) ])
+        , style_ (faceUpStyles c isSel ++ [ position "absolute", "top" =: topOff ])
         ]
         (cardContent c isSel)
 
@@ -561,19 +589,6 @@ isSrcSelected src m = case _selected m of
 ----------------------------------------------------------------------------
 -- Card rendering
 ----------------------------------------------------------------------------
-cardW, cardH, slotH :: Int
-cardW = 70
-cardH = 100
-slotH = 120
-
--- | Horizontal overlap between fanned waste cards
-wasteOverlap :: Int
-wasteOverlap = 16
-
--- | Fixed width of the waste area (room for up to 3 fanned cards)
-wasteW :: Int
-wasteW = cardW + 2 * wasteOverlap   -- 102 px
-
 -- | Render a face-up card with optional selection highlight
 viewFaceCard :: Card -> Bool -> [Attribute Action] -> View Model Action
 viewFaceCard c isSel attrs =
@@ -587,7 +602,7 @@ cardContent c _ =
          [ style_
              [ position "absolute"
              , top (px 4), left (px 6)
-             , fontSize (px 12), fontWeight "bold"
+             , "font-size" =: "var(--corner-fs)", fontWeight "bold"
              , color col, lineHeight "1.3"
              ]
          ]
@@ -597,7 +612,7 @@ cardContent c _ =
              [ position "absolute"
              , top (pct 50.0), left (pct 50.0)
              , transform "translate(-50%,-50%)"
-             , fontSize (px 26), color col
+             , "font-size" =: "var(--pip-fs)", color col
              ]
          ]
          [ text (suitStr (cardSuit c)) ]
@@ -605,7 +620,7 @@ cardContent c _ =
          [ style_
              [ position "absolute"
              , bottom (px 4), right (px 6)
-             , fontSize (px 12), fontWeight "bold"
+             , "font-size" =: "var(--corner-fs)", fontWeight "bold"
              , color col, lineHeight "1.3"
              , transform "rotate(180deg)"
              ]
@@ -616,10 +631,11 @@ cardContent c _ =
 -- | Styles for a face-up card (selected or not)
 faceUpStyles :: Card -> Bool -> [Style]
 faceUpStyles _ isSel =
-  [ width (px cardW), height (px cardH)
-  , borderRadius (px 8)
+  [ "width" =: "var(--cw)", "height" =: "var(--ch)"
+  , "border-radius" =: "var(--crad)"
   , backgroundColor white
-  , border "2px solid #ccc"
+  , border "var(--cbw) solid #ccc"
+  , boxSizing "border-box"
   , position "relative"
   , cursor "pointer"
   , transition "box-shadow 0.2s ease, transform 0.15s ease"
@@ -631,9 +647,10 @@ faceUpStyles _ isSel =
 -- | Styles for a face-down card
 cardBackStyles :: [Style]
 cardBackStyles =
-  [ width (px cardW), height (px cardH)
-  , borderRadius (px 8)
-  , border "2px solid #1e3a8a"
+  [ "width" =: "var(--cw)", "height" =: "var(--ch)"
+  , "border-radius" =: "var(--crad)"
+  , border "var(--cbw) solid #1e3a8a"
+  , boxSizing "border-box"
   , background "repeating-linear-gradient(45deg,#1e40af,#1e40af 5px,#2563eb 5px,#2563eb 10px)"
   , position "relative"
   ]
@@ -641,9 +658,10 @@ cardBackStyles =
 -- | Styles for an empty placeholder slot
 emptySlotStyles :: [Style]
 emptySlotStyles =
-  [ width (px cardW), height (px cardH)
-  , borderRadius (px 8)
-  , border "2px dashed #4a9e6a"
+  [ "width" =: "var(--cw)", "height" =: "var(--ch)"
+  , "border-radius" =: "var(--crad)"
+  , border "var(--cbw) dashed #4a9e6a"
+  , boxSizing "border-box"
   , background "rgba(0,0,0,0.12)"
   , position "relative"
   ]
@@ -687,7 +705,9 @@ viewWinOverlay =
         [ classList ["sol-win"]
         , style_
             [ backgroundColor white
-            , padding "48px 56px"
+            , padding "clamp(24px, 8vw, 48px) clamp(24px, 9vw, 56px)"
+            , "max-width" =: "86vw"
+            , boxSizing "border-box"
             , borderRadius (px 16)
             , textAlign "center"
             , boxShadow "0 8px 32px rgba(0,0,0,0.4)"
