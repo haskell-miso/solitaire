@@ -376,8 +376,8 @@ selectRun m ci col cardFromTop =
 ----------------------------------------------------------------------------
 -- View
 ----------------------------------------------------------------------------
-viewModel :: context -> props -> Model -> View context Model Action
-viewModel _ _ m =
+viewModel :: Model -> View context props Model Action
+viewModel m =
   H.div_
     [ style_
         [ backgroundColor (hex "076324")
@@ -397,7 +397,7 @@ viewModel _ _ m =
     ]
 
 -- | Header: title, buttons, move counter
-viewHeader :: Model -> View context Model Action
+viewHeader :: Model -> View context props Model Action
 viewHeader m =
   H.div_
     [ classList ["sol-header"] ]
@@ -423,7 +423,7 @@ viewHeader m =
         [ text lbl ]
 
 -- | Top row: stock | waste | spacer | 4 foundations
-viewTopRow :: Model -> View context Model Action
+viewTopRow :: Model -> View context props Model Action
 viewTopRow m =
   H.div_
     [ classList ["sol-toprow"] ]
@@ -437,7 +437,7 @@ viewTopRow m =
     ]
 
 -- | Stock pile
-viewStock :: Model -> View context Model Action
+viewStock :: Model -> View context props Model Action
 viewStock m = case _stock m of
   [] ->
     emptySlot
@@ -463,7 +463,7 @@ viewStock m = case _stock m of
 -- | Waste pile – fans up to 3 cards horizontally.
 --   Oldest card sits at left=0; the newest (top/playable) card is at the right.
 --   Only the top card has a click handler and the selection highlight.
-viewWaste :: Model -> View context Model Action
+viewWaste :: Model -> View context props Model Action
 viewWaste m =
   let isSel   = isSrcSelected SrcWaste m
       visible = take 3 (_waste m)          -- [newest, 2nd, 3rd] (head = top)
@@ -496,7 +496,7 @@ viewWaste m =
              ]
 
 -- | One foundation pile
-viewFoundation :: Int -> Model -> View context Model Action
+viewFoundation :: Int -> Model -> View context props Model Action
 viewFoundation fi m =
   let found = _foundations m !! fi
       isSel = isSrcSelected (SrcFoundation fi) m
@@ -520,7 +520,7 @@ viewFoundation fi m =
     (c:_) -> viewFaceCard c isSel [ H.onClick (ClickFoundation fi) ]
 
 -- | Seven tableau columns
-viewTableau :: Model -> View context Model Action
+viewTableau :: Model -> View context props Model Action
 viewTableau m =
   H.div_
     [ classList ["sol-tableau"] ]
@@ -529,7 +529,7 @@ viewTableau m =
 -- | One tableau column with absolutely-positioned stacked cards.
 --   Offsets are calc() expressions counting face-down/face-up cards above,
 --   so the stack spacing follows the CSS variables.
-viewTableauCol :: Int -> Model -> View context Model Action
+viewTableauCol :: Int -> Model -> View context props Model Action
 viewTableauCol ci m =
   let col     = _tableau m !! ci
       revCol  = reverse col          -- bottom card rendered first
@@ -556,7 +556,7 @@ offsetCalc (d, u) addCard = mconcat
   ]
 
 -- | Render one tableau card at a given top offset
-renderTabCard :: Int -> Model -> [FaceCard] -> MisoString -> Int -> FaceCard -> View context Model Action
+renderTabCard :: Int -> Model -> [FaceCard] -> MisoString -> Int -> FaceCard -> View context props Model Action
 renderTabCard ci m revCol topOff ri fc =
   let cardFromTop = length revCol - 1 - ri
       isSel       = isTabSelected ci cardFromTop m
@@ -590,12 +590,12 @@ isSrcSelected src m = case _selected m of
 -- Card rendering
 ----------------------------------------------------------------------------
 -- | Render a face-up card with optional selection highlight
-viewFaceCard :: Card -> Bool -> [Attribute Model Action] -> View context Model Action
+viewFaceCard :: Card -> Bool -> [Attribute Model Action] -> View context props Model Action
 viewFaceCard c isSel attrs =
   H.div_ (classList ["sol-card"] : style_ (faceUpStyles c isSel) : attrs) (cardContent c isSel)
 
 -- | Inner content of a face-up card (top-left corner, centre, bottom-right)
-cardContent :: Card -> Bool -> [View context Model Action]
+cardContent :: Card -> Bool -> [View context props Model Action]
 cardContent c _ =
   let col = if isRed c then hex "dc2626" else hex "111827"
   in [ H.div_
@@ -667,7 +667,7 @@ emptySlotStyles =
   ]
 
 -- | An empty placeholder slot element
-emptySlot :: [Attribute Model Action] -> View context Model Action
+emptySlot :: [Attribute Model Action] -> View context props Model Action
 emptySlot attrs = H.div_ (style_ emptySlotStyles : attrs) []
 
 -- | Rank as display string
@@ -687,7 +687,7 @@ suitStr = \case
   Spades   -> "\x2660"    -- ♠
 
 -- | Win overlay
-viewWinOverlay :: View context Model Action
+viewWinOverlay :: View context props Model Action
 viewWinOverlay =
   H.div_
     [ style_
